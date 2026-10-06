@@ -1,0 +1,20 @@
+{
+  "id": "maple-cu",
+  "lender": "Maple Valley Credit Union",
+  "expected": {
+    "loanAmount": 250000,
+    "interestRate": 5.5,
+    "loanTermYears": 15,
+    "monthlyPrincipalInterest": 2082.71,
+    "apr": 5.583,
+    "originationCharges": 750.0,
+    "totalClosingCosts": 6680.0,
+    "prepaymentPenalty": false,
+    "balloonPayment": false,
+    "rateLocked": true
+  },
+  "expectedFlags": [
+    "PAYMENT_MISMATCH"
+  ],
+  "note": "Printed monthly P&I is deliberately wrong by $40 (true value 2042.71)"
+}

@@ -1,0 +1,22 @@
+{
+  "id": "quickfund-arm",
+  "lender": "QuickFund Mortgage Co.",
+  "expected": {
+    "loanAmount": 280000,
+    "interestRate": 5.75,
+    "loanTermYears": 30,
+    "monthlyPrincipalInterest": 1634.0,
+    "apr": 7.124,
+    "originationCharges": 5600.0,
+    "totalClosingCosts": 12490.0,
+    "prepaymentPenalty": false,
+    "balloonPayment": false,
+    "rateLocked": true
+  },
+  "expectedFlags": [
+    "ADJUSTABLE_RATE",
+    "HIGH_ORIGINATION",
+    "APR_GAP"
+  ],
+  "note": ""
+}

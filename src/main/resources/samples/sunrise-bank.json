@@ -1,0 +1,18 @@
+{
+  "id": "sunrise-bank",
+  "lender": "Sunrise Community Bank",
+  "expected": {
+    "loanAmount": 320000,
+    "interestRate": 6.25,
+    "loanTermYears": 30,
+    "monthlyPrincipalInterest": 1970.3,
+    "apr": 6.312,
+    "originationCharges": 1600.0,
+    "totalClosingCosts": 8750.0,
+    "prepaymentPenalty": false,
+    "balloonPayment": false,
+    "rateLocked": true
+  },
+  "expectedFlags": [],
+  "note": ""
+}

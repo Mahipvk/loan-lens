@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: loanlens
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  http:
+    client:
+      connect-timeout: 10s
+      read-timeout: 15m
+  ai:
+    model:
+      embedding: none          # this app does not need embeddings
+    ollama:
+      base-url: ${OLLAMA_URL:http://localhost:11434}
+      init:
+        pull-model-strategy: when_missing
+        timeout: 60m
+        max-retries: 2
+      chat:
+        options:
+          model: ${CHAT_MODEL:qwen2.5:7b}
+          temperature: 0.0
+          num-ctx: 8192
+      embedding:
+        options:
+          model: nomic-embed-text

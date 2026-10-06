@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoanLens</title>
+<style>
+  :root { --bg:#f5f7f6; --card:#fff; --ink:#18232b; --muted:#5b6770; --line:#dce3e1; --accent:#0f6e5c; --warn:#a85a00; --bad:#b3261e; --ok:#1e7d45; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:20px 24px; background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:20px; } header p { margin:4px 0 0; color:var(--muted); }
+  main { max-width:1000px; margin:0 auto; padding:20px 16px 60px; display:grid; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:end; }
+  label { font-weight:600; display:block; margin-bottom:4px; font-size:14px; }
+  select, input[type=file] { font:inherit; padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  button { font:inherit; font-weight:600; padding:8px 14px; border:0; border-radius:8px; background:var(--accent); color:#fff; cursor:pointer; }
+  button.secondary { background:#e6ecea; color:var(--ink); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .muted { color:var(--muted); font-size:13px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; } td, th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .ok { color:var(--ok); font-weight:700; } .bad { color:var(--bad); font-weight:700; } .warn { color:var(--warn); font-weight:700; }
+  .flag { border-left:4px solid var(--warn); background:#fff8ef; padding:8px 12px; border-radius:6px; margin:8px 0; }
+  .flag b { display:block; }
+  .big { font-size:22px; font-weight:700; }
+  .stats { display:flex; gap:24px; flex-wrap:wrap; margin:8px 0; }
+  pre { white-space:pre-wrap; background:#f1f4f3; padding:10px; border-radius:8px; font-size:12px; }
+  h3 { margin:14px 0 6px; font-size:15px; }
+  .disclaimer { font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>LoanLens</h1>
+  <p>Understand a mortgage Loan Estimate in plain language &middot; AI extraction + verified math + questions to ask your lender</p>
+</header>
+<main>
+  <section class="card">
+    <div class="row">
+      <div><label for="sample">Sample Loan Estimate</label><select id="sample"></select></div>
+      <div><label for="lang">Explain in</label>
+        <select id="lang"><option>English</option><option>Spanish</option><option>Hindi</option><option>Telugu</option></select></div>
+      <button id="go">Explain this loan</button>
+      <a id="viewpdf" class="muted" target="_blank">View PDF</a>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <div><label for="file">...or upload your own Loan Estimate (PDF)</label><input type="file" id="file" accept="application/pdf"></div>
+      <button id="upload" class="secondary">Explain uploaded PDF</button>
+    </div>
+    <div id="status" class="muted" style="margin-top:8px"></div>
+    <p class="disclaimer">Educational tool, not financial or legal advice. Bundled samples are synthetic. Personal details are masked before the AI reads the document.</p>
+  </section>
+
+  <section class="card" id="result" hidden></section>
+
+  <section class="card">
+    <h3 style="margin-top:0">Compare two offers</h3>
+    <div class="row">
+      <select id="cmpA"></select><span>vs</span><select id="cmpB"></select>
+      <button id="compare" class="secondary">Compare</button>
+    </div>
+    <div id="cmpOut"></div>
+  </section>
+
+  <section class="card">
+    <h3 style="margin-top:0">Evaluation</h3>
+    <p class="muted">Runs every sample through the pipeline and checks 10 fields and the red flags against the known answers.</p>
+    <button id="evals" class="secondary">Run evals</button>
+    <div id="evalOut"></div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const usd = v => v == null ? '—' : '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const pct = v => v == null ? '—' : Number(v).toFixed(3) + '%';
+const yn = v => v == null ? '—' : (v ? 'Yes' : 'No');
+const buttons = ['go', 'upload', 'compare', 'evals'];
+function busy(on, msg) { buttons.forEach(b => $(b).disabled = on); $('status').textContent = msg || ''; }
+async function call(url, opts) { const r = await fetch(url, opts); const d = await r.json(); if (!r.ok) throw new Error(d.error || r.statusText); return d; }
+
+fetch('/api/samples').then(r => r.json()).then(list => {
+  const opts = list.map(s => `<option value="${esc(s.id)}">${esc(s.lender)}</option>`).join('');
+  $('sample').innerHTML = opts; $('cmpA').innerHTML = opts; $('cmpB').innerHTML = opts;
+  if (list.length > 1) $('cmpB').selectedIndex = 1;
+  setPdfLink();
+});
+function setPdfLink() { $('viewpdf').href = '/api/samples/' + encodeURIComponent($('sample').value) + '/pdf'; }
+$('sample').onchange = setPdfLink;
+
+function check(v) { return v ? '<span class="ok">✓ found in document</span>' : '<span class="warn">⚠ not found in document</span>'; }
+
+function render(d) {
+  const t = d.terms, v = d.verifiedInDocument;
+  const payOk = t.monthlyPrincipalInterest != null && Math.abs(d.recalculatedMonthlyPayment - t.monthlyPrincipalInterest) <= 1;
+  $('result').hidden = false;
+  $('result').innerHTML = `
+    <h3 style="margin-top:0">${esc(t.lender)} &middot; ${esc(t.loanType)} &middot; ${esc(t.loanTermYears)} years</h3>
+    <div class="stats">
+      <div><div class="muted">Monthly principal &amp; interest</div><div class="big">${usd(t.monthlyPrincipalInterest)}</div>
+        <div class="${payOk ? 'ok' : 'bad'}">${payOk ? '✓ matches our calculation' : '✗ our calculation says ' + usd(d.recalculatedMonthlyPayment)}</div></div>
+      <div><div class="muted">Due at closing</div><div class="big">${usd(t.cashToClose)}</div></div>
+      <div><div class="muted">Approx. first 5 years</div><div class="big">${usd(d.fiveYearCost)}</div><div class="muted">60 payments + closing costs</div></div>
+    </div>
+    <h3>Questions to ask your lender (${d.flags.length})</h3>
+    ${d.flags.length ? d.flags.map(f => `<div class="flag"><b>${esc(f.title)}</b>${esc(f.why)}<br><i>Ask: ${esc(f.askYourLender)}</i></div>`).join('') : '<p class="ok">No red flags found by our rules.</p>'}
+    <h3>Plain-language explanation</h3>
+    <p>${esc(d.explanation).replace(/\n\n/g, '</p><p>')}</p>
+    <h3>Key terms the AI extracted</h3>
+    <table>
+      <tr><td>Loan amount</td><td>${usd(t.loanAmount)}</td><td>${check(v.loanAmount)}</td></tr>
+      <tr><td>Interest rate</td><td>${pct(t.interestRate)}</td><td>${check(v.interestRate)}</td></tr>
+      <tr><td>APR</td><td>${pct(t.apr)}</td><td>${check(v.apr)}</td></tr>
+      <tr><td>Monthly principal &amp; interest</td><td>${usd(t.monthlyPrincipalInterest)}</td><td>${check(v.monthlyPrincipalInterest)}</td></tr>
+      <tr><td>Origination charges</td><td>${usd(t.originationCharges)}</td><td>${check(v.originationCharges)}</td></tr>
+      <tr><td>Estimated closing costs</td><td>${usd(t.totalClosingCosts)}</td><td>${check(v.totalClosingCosts)}</td></tr>
+      <tr><td>Cash to close</td><td>${usd(t.cashToClose)}</td><td>${check(v.cashToClose)}</td></tr>
+      <tr><td>Rate locked / Prepayment penalty / Balloon</td><td colspan="2">${yn(t.rateLocked)} / ${yn(t.prepaymentPenalty)} / ${yn(t.balloonPayment)}</td></tr>
+    </table>
+    <details style="margin-top:10px"><summary class="muted">What the AI actually saw (personal data masked)</summary><pre>${esc(d.redactedPreview)}</pre></details>
+    <p class="muted">${(d.millis/1000).toFixed(1)}s &middot; model ${esc(d.model)} &middot; ${esc(d.source)}</p>`;
+}
+
+$('go').onclick = async () => {
+  busy(true, 'Reading the document and checking the numbers (about 1 minute)...');
+  try { render(await call(`/api/analyze/sample/${encodeURIComponent($('sample').value)}?language=${encodeURIComponent($('lang').value)}`, {method:'POST'})); busy(false, 'Done.'); }
+  catch (e) { busy(false, 'Error: ' + e.message); }
+};
+
+$('upload').onclick = async () => {
+  const f = $('file').files[0]; if (!f) { $('status').textContent = 'Choose a PDF first.'; return; }
+  const fd = new FormData(); fd.append('file', f); fd.append('language', $('lang').value);
+  busy(true, 'Reading your document (about 1 minute)...');
+  try { render(await call('/api/analyze/upload', {method:'POST', body: fd})); busy(false, 'Done.'); }
+  catch (e) { busy(false, 'Error: ' + e.message); }
+};
+
+$('compare').onclick = async () => {
+  busy(true, 'Reading both offers (about 1-2 minutes)...');
+  try {
+    const d = await call(`/api/compare?a=${encodeURIComponent($('cmpA').value)}&b=${encodeURIComponent($('cmpB').value)}`, {method:'POST'});
+    const A = d.a, B = d.b, row = (label, f) => `<tr><td>${label}</td><td>${f(A)}</td><td>${f(B)}</td></tr>`;
+    $('cmpOut').innerHTML = `<table style="margin-top:10px">
+      <tr><th></th><th>${esc(A.terms.lender)}</th><th>${esc(B.terms.lender)}</th></tr>
+      ${row('Interest rate', r => pct(r.terms.interestRate))}
+      ${row('APR', r => pct(r.terms.apr))}
+      ${row('Monthly P&amp;I (recalculated)', r => usd(r.recalculatedMonthlyPayment))}
+      ${row('Closing costs', r => usd(r.terms.totalClosingCosts))}
+      ${row('Approx. first 5 years', r => '<b>' + usd(r.fiveYearCost) + '</b>')}
+      ${row('Red flags', r => r.flags.length ? r.flags.map(f => esc(f.code)).join('<br>') : 'none')}
+    </table>
+    <p>Over the first 5 years, <b>${esc((d.lowerFiveYearCost === A.source ? A : B).terms.lender)}</b> costs about <b>${usd(d.difference)}</b> less (payments + closing costs only; not advice).</p>`;
+    busy(false, 'Done.');
+  } catch (e) { busy(false, 'Error: ' + e.message); }
+};
+
+$('evals').onclick = async () => {
+  busy(true, 'Running all samples (a few minutes)...');
+  try {
+    const d = await call('/api/evals', {method:'POST'});
+    $('evalOut').innerHTML = `
+      <p><b>${Math.round(d.fieldAccuracy*100)}%</b> field accuracy &middot; red flags: <b>${Math.round(d.flagPrecision*100)}%</b> precision, <b>${Math.round(d.flagRecall*100)}%</b> recall &middot; avg ${(d.avgMillis/1000).toFixed(1)}s per document &middot; ${esc(d.model)}</p>
+      <table><tr><th>Sample</th><th>Fields correct</th><th>Expected flags</th><th>Flags raised</th><th>Wrong fields</th></tr>
+      ${d.results.map(r => `<tr><td>${esc(r.sampleId)}</td><td class="${r.fieldsCorrect === r.fieldsTotal ? 'ok' : 'bad'}">${r.fieldsCorrect}/${r.fieldsTotal}</td>
+        <td>${esc(r.expectedFlags.join(', ') || 'none')}</td><td>${esc(r.actualFlags.join(', ') || 'none')}</td>
+        <td>${r.fields.filter(f => !f.correct).map(f => esc(f.field) + ': expected ' + esc(f.expected) + ', got ' + esc(f.actual)).join('<br>') || '—'}</td></tr>`).join('')}
+      </table>`;
+    busy(false, 'Evals finished.');
+  } catch (e) { busy(false, 'Error: ' + e.message); }
+};
+</script>
+</body>
+</html>

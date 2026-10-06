@@ -1,0 +1,23 @@
+{
+  "id": "harbor-lending",
+  "lender": "Harbor Point Lending LLC",
+  "expected": {
+    "loanAmount": 320000,
+    "interestRate": 6.125,
+    "loanTermYears": 30,
+    "monthlyPrincipalInterest": 1944.35,
+    "apr": 6.398,
+    "originationCharges": 7440.0,
+    "totalClosingCosts": 14910.0,
+    "prepaymentPenalty": true,
+    "balloonPayment": false,
+    "rateLocked": false
+  },
+  "expectedFlags": [
+    "PREPAYMENT_PENALTY",
+    "RATE_NOT_LOCKED",
+    "HIGH_ORIGINATION",
+    "POINTS_PAID"
+  ],
+  "note": ""
+}
